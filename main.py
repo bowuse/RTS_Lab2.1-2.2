@@ -2,7 +2,8 @@ import matplotlib.pyplot as plt
 import math
 from random import *
 import numpy as np
-
+from multiprocessing import Pool
+from time import time
 
 N = 256
 w = 900
@@ -53,6 +54,16 @@ def dpf(signal):
     w = np.exp(-2j * np.pi * p * k / n)
     return np.dot(w, signal)
 
+def fft_treads(signal):
+    p = Pool(2)
+    signal = np.asanyarray(signal, dtype=float)
+    signals = (signal[::2], signal[1::2])
+    N = len(signal)
+    signal_even, signal_odd = p.map(fft, signals)
+    terms = np.exp(-2j * np.pi * np.arange(N) / N)
+    return np.concatenate([signal_even + terms[:N // 2] * signal_odd,
+                           signal_even + terms[N // 2:] * signal_odd])
+
 def fft(signal):
     signal = np.asanyarray(signal, dtype=float)
     N = len(signal)
@@ -66,34 +77,37 @@ def fft(signal):
                                signal_even + terms[N // 2:] * signal_odd])
 
 
-A = arrGenerator(n, 0, 5)
-alpha  = arrGenerator(n, 0, 5)
-freq = generateFreq(w, n)
-x = generateXt(N, n, A, freq, alpha)
-x_dpf = dpf(x)
-x_fft = fft(x)
-
-t = np.linspace(0, 10, N)
-x_dpf_real = x_dpf.real
-x_dpf_img = x_dpf.imag
-x_fft_real = x_fft.real
-x_fft_img = x_fft.imag
-
-
-
-# Graphics
-
 def draw_DPF():
     plt.title("DPF")
     plt.plot(t, x_dpf_real, 'b', t, x_dpf_img, 'r')
     plt.show()
 
-def draw_FFT():
+def draw_FFT(t, x_fft_real, x_fft_img):
     plt.title("FFT")
     plt.plot(t, x_fft_real, 'b', t, x_fft_img, 'r')
     plt.show()
 
 
+def time_measure(N, func):
+    s = time()
+    func(N)
+    score = time() - s
+    print("N={} {}s".format(N, score))
 
-draw_DPF()
-draw_FFT()
+def main(N):
+    A = arrGenerator(n, 0, 5)
+    alpha = arrGenerator(n, 0, 5)
+    freq = generateFreq(w, n)
+    x = generateXt(N, n, A, freq, alpha)
+    x_fft = fft_treads(x)
+
+    t = np.linspace(0, 10, N)
+    x_fft_real = x_fft.real
+    x_fft_img = x_fft.imag
+
+    draw_FFT(t, x_fft_real, x_fft_img)
+
+
+if __name__ == '__main__':
+    for i in (256, 1024, 65536):
+        time_measure(i, main)
